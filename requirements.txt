@@ -1,0 +1,6 @@
+flask>=3.0
+flaskwebgui>=1.1
+pymupdf>=1.24
+python-pptx>=1.0
+qrcode>=7.4
+pillow>=9.5

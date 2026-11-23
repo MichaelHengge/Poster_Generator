@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <!-- tile -->
+  <rect x="0" y="0" width="64" height="64" rx="14" fill="#1F5FD0"/>
+  <!-- poster sheet with a soft shadow -->
+  <rect x="15.5" y="9.5" width="35" height="48" rx="3.5" fill="#0E2F6B" fill-opacity="0.35"/>
+  <rect x="14" y="7" width="35" height="48" rx="3.5" fill="#FFFFFF"/>
+  <!-- header bar -->
+  <rect x="14" y="7" width="35" height="11" rx="3.5" fill="#F4A259"/>
+  <rect x="14" y="13" width="35" height="5" fill="#F4A259"/>
+  <rect x="18" y="10.5" width="17" height="2.4" rx="1.2" fill="#FFFFFF"/>
+  <rect x="18" y="14.2" width="10" height="1.6" rx="0.8" fill="#FFFFFF" fill-opacity="0.85"/>
+  <!-- section blocks -->
+  <rect x="18" y="22" width="8.5" height="13" rx="1.6" fill="#A9C4F5"/>
+  <rect x="18" y="37.5" width="8.5" height="13.5" rx="1.6" fill="#A9C4F5"/>
+  <rect x="29" y="22" width="16" height="16" rx="1.6" fill="#1F5FD0"/>
+  <path d="M31.5 35 l4 -5 l3 3.2 l2.4 -2.6 l2.6 4.4 z" fill="#FFFFFF" fill-opacity="0.9"/>
+  <rect x="29" y="40.5" width="7" height="10.5" rx="1.6" fill="#A9C4F5"/>
+  <rect x="38" y="40.5" width="7" height="10.5" rx="1.6" fill="#A9C4F5"/>
+</svg>
