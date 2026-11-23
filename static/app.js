@@ -89,11 +89,17 @@
 
   // ------------------------------------------------------------ sections editor
   function newId() { return Math.random().toString(36).slice(2, 10); }
+  // figure position in a section: "auto" or "<top|middle|bottom>-<left|center|right>"
+  function normAlign(v) {
+    if (["left", "center", "right"].includes(v)) return "middle-" + v;     // older settings
+    return /^(top|middle|bottom)-(left|center|right)$/.test(v || "") ? v : "auto";
+  }
   function normSections(v) {
     if (typeof v === "string") v = v.split("\n").filter((t) => t.trim()).map((t) => ({ title: t.trim() }));
     return (Array.isArray(v) ? v : []).map((s) => (typeof s === "string" ? { title: s } : s))
       .map((s) => ({ id: s.id || newId(), title: String(s.title ?? ""), figure: FIG_LABEL[s.figure] ? s.figure : "auto",
-                     body: String(s.body ?? ""), figs: s.figs && typeof s.figs === "object" && !Array.isArray(s.figs) ? s.figs : {} }));
+                     body: String(s.body ?? ""), figs: s.figs && typeof s.figs === "object" && !Array.isArray(s.figs) ? s.figs : {},
+                     fig_align: normAlign(s.fig_align) }));
   }
   function renderSections() {
     $("#sectionCount").value = S.sections.length;
@@ -232,11 +238,17 @@
 
   // font pickers: installed families, each option shown in its own typeface
   function renderFontSelects() {
-    const groups = { "sans-serif": "Sans-serif", serif: "Serif" };
+    const groups = { "sans-serif": "Sans-serif", serif: "Serif", monospace: "Monospace" };
     const html = Object.entries(groups).map(([g, label]) =>
       `<optgroup label="${label}">${CFG.fonts.filter((f) => f.generic === g)
         .map((f) => `<option value="${escapeHtml(f.name)}" style="font-family:'${escapeHtml(f.name)}'">${escapeHtml(f.name)}</option>`).join("")}</optgroup>`).join("");
     $$(".font-select").forEach((sel) => (sel.innerHTML = html));
+    // fonts copied into the app's fonts/ folder are not installed: let the browser load them for the menus and preview
+    const faces = CFG.fonts.flatMap((f) => (f.faces || []).map((x) =>
+      `@font-face{font-family:'${f.name}';src:url('${x.url}') format('truetype');font-weight:${x.weight};font-style:${x.style};font-display:swap}`));
+    let st = $("#bundledFonts");
+    if (!st) { st = document.createElement("style"); st.id = "bundledFonts"; document.head.appendChild(st); }
+    st.textContent = faces.join("\n");
   }
 
   function bindSectionList() {
@@ -969,7 +981,16 @@
     if (kind === "image") {
       body = slotHTML(key, "Picture");
       const m = /^s\.(.+)\.fig\.(\d)$/.exec(key);
-      if (m) body += `<label>Caption<textarea data-field="s.${m[1]}.cap.${m[2]}" rows="2" placeholder="Caption (empty = sample caption)"></textarea></label>`;
+      if (m) {
+        const cur = secById(m[1])?.fig_align || "auto";
+        body += `<label>Caption<textarea data-field="s.${m[1]}.cap.${m[2]}" rows="2" placeholder="Caption (empty = sample caption)"></textarea></label>
+          <span class="lbl">Position in the section <small>(or drag the figure)</small></span>
+          <div class="fig-align">
+            <button class="auto${cur === "auto" ? " on" : ""}" data-falign="auto" data-sec="${m[1]}">Auto</button>
+            <div class="pos-grid">${["top", "middle", "bottom"].flatMap((v) => ["left", "center", "right"].map((h) =>
+              `<button data-falign="${v}-${h}" data-sec="${m[1]}" class="${cur === `${v}-${h}` ? "on" : ""}" title="${alignName(`${v}-${h}`)}"><i></i></button>`)).join("")}</div>
+          </div>`;
+      }
     } else if (kind === "qr") {
       body = `<label>QR code link<input type="url" data-field="qr_url" placeholder="https://doi.org/…"></label>`;
     } else {
@@ -1009,7 +1030,7 @@
   // ---- moving content around on the preview
   const labelOf = (t) => t.querySelector("title")?.textContent || "";
   const isBody = (k) => /^s\..+\.body$/.test(k);
-  const canDrag = (key, kind) => (kind === "image" && !!getField(key)) || (isBody(key) && !!getField(key).trim());
+  const canDrag = (key, kind) => (kind === "image" && (!!getField(key) || /\.fig\.\d$/.test(key))) || (isBody(key) && !!getField(key).trim());
   const fits = (a, aKind, b, bKind) => (aKind === "image" && bKind === "image") || (isBody(a) && isBody(b));
   function swapContent(a, b) {
     const va = getField(a), vb = getField(b);
@@ -1021,6 +1042,62 @@
     }
     toast(isBody(a) ? "Texts swapped" : "Pictures swapped");
   }
+  const isFig = (k) => /^s\.[^.]+\.fig\.\d$/.test(k);
+  const secOf = (k) => { const m = /^s\.([^.]+)\./.exec(k || ""); return m ? m[1] : null; };
+  const alignName = (a) => {
+    if (!a || a === "auto") return "automatic";
+    const [v, h] = a.split("-");
+    if (v === "middle" && h === "center") return "in the middle";
+    return `${{ top: "top", middle: "middle", bottom: "bottom" }[v]} ${{ left: "left", center: "centre", right: "right" }[h]}`;
+  };
+  function setFigAlign(sid, align) {
+    const sec = secById(sid); if (!sec) return;
+    sec.fig_align = align; changed();
+  }
+  function moveFigure(key, toSid) {
+    // the picture (or the placeholder) and its caption go into the target section's first free figure place
+    const from = secById(secOf(key)), to = secById(toSid); if (!from || !to) return;
+    const slot = key.split(".").pop(), f = (from.figs || {})[slot] || {};
+    const slots = figSlots(to);
+    const free = slots.find((j) => !getField(`s.${to.id}.fig.${j}`)) ?? (slots.length ? null : "0");
+    if (free == null) { toast(`“${to.title}” has no free figure place – drop onto one of its figures to swap`); return; }
+    to.figs = to.figs || {};
+    to.figs[free] = { img: f.img || "", caption: f.caption || "" };
+    if (to.figure === "no" || !slots.length) to.figure = "yes";
+    if (from.figs) delete from.figs[slot];
+    if (!Object.values(from.figs || {}).some((x) => x && x.img)) from.figure = "no";   // the figure left this section
+    renderSections(); changed();
+    toast(`Figure moved to “${to.title}”`);
+  }
+  function secRect(sid) {   // the section's box on the preview (screen + poster coordinates)
+    const i = S.sections.findIndex((s) => s.id === sid);
+    const r = $(`#sheet rect.hot[data-idx="${i}"]`); if (!r) return null;
+    return { el: r, screen: r.getBoundingClientRect(), box: r.getBBox() };
+  }
+  function drawDragHints(mode, sid, zone) {   // alignment thirds of the own section, or the target section
+    const svg = $("#sheet svg"); if (!svg) return;
+    let g = $("#dragHints", svg);
+    if (!g) { g = document.createElementNS("http://www.w3.org/2000/svg", "g"); g.id = "dragHints"; svg.appendChild(g); }
+    const r = sid && secRect(sid);
+    if (!r || !mode) { g.innerHTML = ""; return; }
+    const { x, y, width: w, height: h } = r.box, fz = Math.min(w / 9, 26);
+    if (mode === "move") {
+      g.innerHTML = `<rect class="hint-sec" x="${x}" y="${y}" width="${w}" height="${h}"/>`;
+      return;
+    }
+    // 3 x 3 grid: top / middle / bottom x left / centre / right; the chosen cell shows a figure symbol
+    const cells = [];
+    ["top", "middle", "bottom"].forEach((v, r) => ["left", "center", "right"].forEach((hh, c) => {
+      const z = `${v}-${hh}`, on = zone === z, cx = x + c * w / 3, cy = y + r * h / 3;
+      cells.push(`<rect class="hint-zone${on ? " on" : ""}" x="${cx}" y="${cy}" width="${w / 3}" height="${h / 3}"/>`);
+      if (on) {
+        const s = Math.min(w / 3, h / 3) * 0.5;
+        cells.push(`<rect class="hint-fig" x="${cx + w / 6 - s / 2}" y="${cy + h / 6 - s * 0.38}" width="${s}" height="${s * 0.76}" rx="${s * 0.08}"/>`);
+      }
+    }));
+    g.innerHTML = cells.join("");
+  }
+
   async function dropInto(key, kind, dt) {
     const files = [...(dt.files || [])];
     const img = files.find((f) => f.type.startsWith("image/"));
@@ -1070,6 +1147,12 @@
       if (rm) { e.stopPropagation(); setField(rm.dataset.rmimg, ""); return; }
       const slot = e.target.closest(".imgslot");
       if (slot) { pendingImgKey = slot.dataset.img; $("#imgFile").click(); return; }
+      const fa = e.target.closest("[data-falign]");
+      if (fa) {
+        setFigAlign(fa.dataset.sec, fa.dataset.falign);
+        $$("[data-falign]", fa.closest(".fig-align")).forEach((b) => b.classList.toggle("on", b === fa));
+        return;
+      }
       const add = e.target.closest("[data-addfig]");
       if (add) { const sec = secById(add.dataset.addfig); if (sec) { sec.figure = "yes"; renderSections(); changed(); } return; }
       if (e.target.closest("[data-popclose]")) closePop();
@@ -1114,9 +1197,28 @@
       d.ghost.style.left = e.clientX + "px"; d.ghost.style.top = e.clientY + "px";
       const el = document.elementFromPoint(e.clientX, e.clientY);
       const over = el && el.closest ? el.closest("rect.tgt") : null;
-      const ok = over && over.dataset.key !== d.key && fits(d.key, d.kind, over.dataset.key, over.dataset.kind) ? over : null;
+      // pictures swap with pictures; a figure dragged within its own section picks left / middle / right,
+      // dragged onto another section it moves there
+      const hasPic = !!getField(d.key);
+      let ok = over && over.dataset.key !== d.key && fits(d.key, d.kind, over.dataset.key, over.dataset.kind) &&
+               (hasPic || isBody(d.key)) ? over : null;
+      d.mode = ok ? "swap" : null; d.zone = null; d.toSec = null;
+      if (!ok && isFig(d.key) && over) {
+        const sid = secOf(d.key), osid = secOf(over.dataset.key);
+        if (osid === sid) {
+          const r = secRect(sid);
+          if (r) {
+            const fx = (e.clientX - r.screen.left) / r.screen.width, fy = (e.clientY - r.screen.top) / r.screen.height;
+            const third = (f, a) => a[f < 1 / 3 ? 0 : f < 2 / 3 ? 1 : 2];
+            d.mode = "align"; d.zone = third(fy, ["top", "middle", "bottom"]) + "-" + third(fx, ["left", "center", "right"]);
+          }
+        } else if (osid) { d.mode = "move"; d.toSec = osid; }
+      }
       if (ok !== d.over) { if (d.over) d.over.classList.remove("drop"); if (ok) ok.classList.add("drop"); d.over = ok; }
-      d.ghost.textContent = labelOf(d.t) + (ok ? "  ⇄  " + labelOf(ok) : "");
+      drawDragHints(d.mode === "align" || d.mode === "move" ? d.mode : null, d.mode === "align" ? secOf(d.key) : d.toSec, d.zone);
+      d.ghost.textContent = labelOf(d.t) + (d.mode === "swap" ? "  ⇄  " + labelOf(ok)
+        : d.mode === "align" ? `  →  ${alignName(d.zone)}`
+        : d.mode === "move" ? `  →  move to “${secById(d.toSec)?.title || "section"}”` : "");
     });
     document.addEventListener("pointerup", () => {
       if (!d) return;
@@ -1124,8 +1226,11 @@
       sheet.classList.remove("dragging");
       if (x.ghost) x.ghost.remove();
       if (x.over) x.over.classList.remove("drop");
+      drawDragHints(null);
       if (!x.moving) { openPop(x.key); return; }
-      if (x.over) swapContent(x.key, x.over.dataset.key);
+      if (x.mode === "swap" && x.over) swapContent(x.key, x.over.dataset.key);
+      else if (x.mode === "align") { setFigAlign(secOf(x.key), x.zone); toast(`Figure placed ${alignName(x.zone)}`); }
+      else if (x.mode === "move") moveFigure(x.key, x.toSec);
     });
     document.addEventListener("pointerdown", (e) => {   // click elsewhere closes the popover
       if (!popKey || e.target.closest("#editPop") || e.target.closest("rect.tgt")) return;
@@ -1155,6 +1260,23 @@
     });
   }
 
+  // ------------------------------------------------------------ light / dark theme (click the app icon)
+  function markTheme() {
+    const dark = document.documentElement.dataset.theme === "dark";
+    $("#themeToggle").title = dark ? "Switch to light mode" : "Switch to dark mode";
+  }
+  function bindTheme() {
+    markTheme();
+    const btn = $("#themeToggle");
+    btn.addEventListener("click", () => {
+      const next = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+      document.documentElement.dataset.theme = next;
+      try { localStorage.setItem("posterGen.theme", next); } catch { /* storage unavailable */ }
+      btn.classList.remove("flip"); void btn.offsetWidth; btn.classList.add("flip");
+      markTheme();
+    });
+  }
+
   // ------------------------------------------------------------ init
   async function init() {
     CFG = await (await api("/api/config")).json();
@@ -1163,7 +1285,7 @@
     S = fixup({ ...structuredClone(CFG.defaults), ...(storage.get() || {}) });
     storage.set(S);   // persist migrated settings (e.g. new section ids) so reloads look identical
     renderPalettes(); renderColumnPresets(); renderStyles(); renderFontSelects(); writeForm();
-    bind(); bindColorPicker(); bindEditMode(); bindFlow(); bindSectionList(); bindPreviewDrag(); bindDeleteButton(); bindPaneResizer(); render();
+    bind(); bindTheme(); bindColorPicker(); bindEditMode(); bindFlow(); bindSectionList(); bindPreviewDrag(); bindDeleteButton(); bindPaneResizer(); render();
   }
   function fixup(s) {   // migrate settings saved by older versions
     // logos used to be uploaded images; they are placeholders now (on/off + count)

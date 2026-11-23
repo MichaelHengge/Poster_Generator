@@ -768,22 +768,59 @@ def _section(E, st, pal, title, x, y, w, h, s, fs, radius, font, rng, fig_counte
     else:
         want_fig = st["figures"] and roll < st["figure_density"] and bh > 6 * line_mm
     regions = []
-    fig_args = (pal, surface, s, fs, cap_pt, font, rng, fig_counter, name, radius, figs, f"s.{sid}")
-    if want_fig and bw / bh > 1.7:
-        # wide box: text left, figure right
-        tw = bw * rng.uniform(0.35, 0.45)
-        gap = 14 * s
-        regions.append((bx, cy, tw, bh))
-        _figures(E, bx + tw + gap, cy, bw - tw - gap, bh, *fig_args)
+    # draw all random proportions up front, so choosing a figure position never changes anything else
+    r_side, r_top, r_fig, r_two = rng.uniform(0.35, 0.45), rng.uniform(0.12, 0.35), rng.uniform(0.40, 0.62), rng.random()
+    align = sec.get("fig_align") or "auto"
+    placed = align != "auto"           # the user chose the position: keep exactly the figures they have
+    if placed:
+        v_al, h_al = align.split("-")
+    else:
+        v_al, h_al = "middle", ("right" if bw / bh > 1.7 else "center")
+    n_figs = 2 if (figs.get("1") or {}).get("img") else (1 if (placed or has_imgs) else None)
+    fig_args = (pal, surface, s, fs, cap_pt, font, r_two, fig_counter, name, radius, figs, f"s.{sid}", n_figs)
+    gap = 14 * s
+    cap_room = cap_pt * PT * 1.25 * 2 + 10 * s
+
+    def natural_h(width):   # height a single figure of this width needs (picture aspect, or 4:3 for a placeholder)
+        f0 = figs.get("0") or {}
+        img = assets.load_image(f0["img"]) if f0.get("img") else None
+        n = n_figs or 1
+        fw1 = (width - 12 * s * (n - 1)) / n
+        return fw1 / (img[1] if img else 4 / 3) + cap_room
+
+    if want_fig and h_al in ("left", "right"):
+        # figure beside the text; on wide boxes the text gets 35-45 %, otherwise half
+        tw = bw * (r_side if bw / bh > 1.7 else 0.5)
+        fw = bw - tw - gap
+        fx = bx + tw + gap if h_al == "right" else bx
+        fh = bh
+        if placed:            # only as tall as the figure needs, at the top / middle / bottom
+            # at most 70 % of the height, so top / middle / bottom stay visibly different
+            fh = max(min(bh, 6 * line_mm), min(bh * 0.7, natural_h(fw)))
+        fy = {"top": cy, "middle": cy + (bh - fh) / 2, "bottom": cy + bh - fh}[v_al]
+        _figures(E, fx, fy, fw, fh, *fig_args)
+        regions.append((bx if h_al == "right" else bx + fw + gap, cy, tw, bh))
     elif want_fig:
-        lines_top = max(1, int((bh * rng.uniform(0.12, 0.35)) / line_mm))
-        top_h = lines_top * line_mm
-        fig_h = min(bh - top_h - 10 * s, bh * rng.uniform(0.40, 0.62))
-        regions.append((bx, cy, bw, top_h))
-        fy = cy + top_h + 8 * s
-        used = _figures(E, bx, fy, bw, fig_h, *fig_args)
-        ry = fy + used + 8 * s
-        regions.append((bx, ry, bw, bottom - ry))
+        fig_h = min(bh - 2 * line_mm - 10 * s, bh * r_fig)
+        if placed and has_imgs:
+            fig_h = min(bh - 2 * line_mm - 10 * s, max(bh * 0.3, natural_h(bw)))
+        if v_al == "top":
+            used = _figures(E, bx, cy, bw, fig_h, *fig_args)
+            ry = cy + used + 8 * s
+            regions.append((bx, ry, bw, bottom - ry))
+        elif v_al == "bottom":
+            used_h = fig_h
+            regions.append((bx, cy, bw, bh - used_h - 8 * s))
+            _figures(E, bx, bottom - used_h, bw, used_h, *fig_args)
+        else:
+            lines_top = max(1, int((bh * r_top) / line_mm))
+            top_h = lines_top * line_mm
+            fig_h = min(bh - top_h - 10 * s, fig_h)
+            regions.append((bx, cy, bw, top_h))
+            fy = cy + top_h + 8 * s
+            used = _figures(E, bx, fy, bw, fig_h, *fig_args)
+            ry = fy + used + 8 * s
+            regions.append((bx, ry, bw, bottom - ry))
     else:
         regions.append((bx, cy, bw, bh))
     if body:
@@ -859,10 +896,11 @@ def _flow_text(E, st, regions, body, size, lh, pal, font, name):
     return not done
 
 
-def _figures(E, x, y, w, h, pal, surface, s, fs, cap_pt, font, rng, fig_counter, name, radius, figs, key):
-    """1-2 figures with captions inside (x, y, w, h): the user's pictures or placeholders. Returns used height."""
-    two = w > 2.2 * h and rng.random() < 0.7
-    n = 2 if (two or (figs.get("1") or {}).get("img")) else 1
+def _figures(E, x, y, w, h, pal, surface, s, fs, cap_pt, font, r_two, fig_counter, name, radius, figs, key, n=None):
+    """1-2 figures with captions inside (x, y, w, h): the user's pictures or placeholders. Returns used height.
+    n: number of figures, or None to let a wide area show two placeholders side by side (layout mode look)."""
+    if n is None:
+        n = 2 if (w > 2.2 * h and r_two < 0.7) else 1
     gap = 12 * s
     fw = (w - gap * (n - 1)) / n
     # captions: up to two lines (user captions may be long), slightly smaller type if needed

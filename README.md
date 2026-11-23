@@ -8,18 +8,34 @@ python app.py              # desktop window
 python app.py --browser    # dev mode: http://127.0.0.1:5000 with auto-reload
 ```
 
+### Fonts (optional)
+Font files are not included. To use **JetBrains Mono**, **Roboto** and **Open Sans** (free, SIL Open Font License),
+download them and copy the static `.ttf` files into the `fonts/` folder:
+
+| Family | Download | Files to copy into `fonts/` |
+|---|---|---|
+| JetBrains Mono | https://www.jetbrains.com/lp/mono/ | `JetBrainsMono-Regular.ttf`, `-Bold.ttf`, `-Italic.ttf` (in `fonts/ttf/` of the zip) |
+| Roboto | https://fonts.google.com/specimen/Roboto (*Get font* → *Download all*) | `Roboto-Regular.ttf`, `-Bold.ttf`, `-Italic.ttf` (in `static/` of the zip) |
+| Open Sans | https://fonts.google.com/specimen/Open+Sans (*Get font* → *Download all*) | `OpenSans-Regular.ttf`, `-Bold.ttf`, `-Italic.ttf` (in `static/` of the zip) |
+
+Then restart the app. Fonts in `fonts/` work in the preview and are embedded in PDF/PNG exports even when they are
+not installed on the computer; fonts installed on the computer are offered too. Details: [fonts/README.md](fonts/README.md).
+
 ## Features
+- Light / dark app theme: click the app icon (top left)
 - Two modes, switched in the top-left bar:
   - **Layout** – size, colours, style, layout and section arrangement (sample text and placeholders)
   - **Edit** – the poster's own content: click any text, figure, logo or the QR code on the preview to edit it
     in place, or use the fields in the panel (title, authors, affiliations, logos, section titles, text, figures
     and captions, footer). Drop picture files onto a figure or logo (or onto a section to give it a figure), drop
-    text onto a text; drag a picture onto another picture (or a section text onto another) to swap them.
+    text onto a text; drag a picture onto another picture (or a section text onto another) to swap them; drag a figure within its
+    section to place it left / in the middle / right, or onto another section to move it there.
     Empty fields keep the sample text; text that is too long shrinks slightly and is flagged in the status bar.
   - Pictures are stored in `user_data/images`; **Save project** writes them into the project file
 - Sizes A0–A4, 36×48 in, 24×36 in or custom; portrait / landscape
 - 10 preset colour palettes; edit any colour and save your own (stored in `user_data/palettes.json`)
-- Style: heading and body font (any of ~35 common families, if installed on the computer), section text
+- Style: heading and body font – sans-serif, serif and monospace families, from the `fonts/` folder or installed on
+  the computer (see *Fonts* above), section text
   alignment (left / justified / centred / right), background (solid, gradient, soft shapes, grid), cards (filled,
   filled + outline, outline only, none), header style, corner radius, text size, margins, shadows
 - Header: switch title, authors and affiliations on/off (sample text - the real content is written later in
@@ -58,8 +74,9 @@ python app.py --browser    # dev mode: http://127.0.0.1:5000 with auto-reload
 | `poster/fonts.py` | Finds installed font families (Windows, macOS, Linux font folders) |
 | `templates/`, `static/` | The GUI |
 
-Notes: PDF/PNG are drawn with PyMuPDF and embed the chosen fonts (Cairo is not required). Only fonts installed
-on the computer are offered, because the preview, the PDF and PowerPoint all need them. PowerPoint slides are limited to 142 cm,
+Notes: PDF/PNG are drawn with PyMuPDF and embed the chosen fonts (Cairo is not required). Only fonts that are
+installed on the computer or copied into `fonts/` are offered, because the preview and the PDF need the font files;
+for PowerPoint the font must be installed on the computer that opens the file. PowerPoint slides are limited to 142 cm,
 so larger custom sizes are scaled down proportionally in the `.pptx`.
 
 ## License

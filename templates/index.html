@@ -12,13 +12,27 @@
   <link rel="manifest" href="{{ url_for('manifest') }}">
   <meta name="theme-color" content="#1F5FD0">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <script>  /* theme before first paint: saved choice, else the system setting */
+    (function () {
+      var t = null;
+      try { t = localStorage.getItem("posterGen.theme"); } catch (e) {}
+      if (t !== "dark" && t !== "light") t = window.matchMedia && matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+      document.documentElement.dataset.theme = t;
+    })();
+  </script>
 </head>
 <body>
 <div class="app">
   <!-- ============================== SETTINGS ============================== -->
   <aside class="panel">
     <header class="panel-head">
-      <div class="brand"><img src="{{ url_for('static', filename='icon.svg') }}" alt=""><span class="brand-t">Poster Generator</span></div>
+      <div class="brand">
+        <button class="theme-toggle" id="themeToggle" type="button" title="Switch to dark mode" aria-label="Switch between light and dark mode">
+          <img src="{{ url_for('static', filename='icon.svg') }}" alt="">
+          <span class="badge"><svg class="moon" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg><svg class="sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><path d="M12 1v3M12 20v3M1 12h3M20 12h3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1" stroke-width="2.4" stroke-linecap="round"/></svg></span>
+        </button>
+        <span class="brand-t">Poster Generator</span>
+      </div>
       <div class="mode-switch" id="modeSwitch" role="tablist" aria-label="Mode">
         <button data-mode="layout" role="tab" title="Layout mode: size, colours, style and arrangement"><svg viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="9" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="5" rx="1.5"/><rect x="13.5" y="11.5" width="7" height="9" rx="1.5"/><rect x="3.5" y="15.5" width="7" height="5" rx="1.5"/></svg><span>Layout</span></button>
         <button data-mode="edit" role="tab" title="Edit mode: write the text and add your pictures"><svg viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="m13.5 6.5 4 4"/></svg><span>Edit</span></button>
@@ -248,10 +262,6 @@
         <p class="hint" id="logoHint"></p>
       </details>
       <details open>
-        <summary>Sections</summary>
-        <div class="content-sections" id="contentSections"></div>
-      </details>
-      <details open>
         <summary>Footer</summary>
         <div id="footerContent">
           <label>Contact (left)<textarea data-field="c.footer_left" rows="2"></textarea></label>
@@ -260,6 +270,10 @@
           <label>QR code link<input type="url" data-field="qr_url" placeholder="https://doi.org/…"></label>
         </div>
         <p class="hint" id="footerHint" hidden>The footer is switched off in Layout mode.</p>
+      </details>
+      <details open>
+        <summary>Sections</summary>
+        <div class="content-sections" id="contentSections"></div>
       </details>
     </div></div>
     <input type="file" id="imgFile" accept="image/*" hidden>

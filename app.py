@@ -55,6 +55,18 @@ def index():
     return render_template("index.html")
 
 
+@app.get("/fonts/<path:name>")
+def bundled_font(name):
+    """Fonts the user copied into the app's fonts/ folder, for @font-face in the preview."""
+    from poster.fonts import BUNDLED_DIR
+    p = (BUNDLED_DIR / name).resolve()
+    if p.parent != BUNDLED_DIR or p.suffix.lower() not in (".ttf", ".otf") or not p.is_file():
+        return "", 404
+    resp = send_file(p, mimetype="font/ttf" if p.suffix.lower() == ".ttf" else "font/otf")
+    resp.headers["Cache-Control"] = "public, max-age=86400"
+    return resp
+
+
 @app.get("/favicon.ico")
 def favicon():
     return send_file(BASE / "static" / "favicon.ico", mimetype="image/x-icon")

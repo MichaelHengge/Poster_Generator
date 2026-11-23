@@ -49,6 +49,15 @@ DEFAULT_SECTIONS = [
     for t in ["Introduction", "Objectives", "Methods", "Results", "Discussion", "Conclusion", "References", "Acknowledgements"]
 ]
 FIGURE_MODES = ("auto", "yes", "no")
+# where a section's figure sits (edit mode): "auto" or "<top|middle|bottom>-<left|center|right>"
+FIG_ALIGNS = ("auto",) + tuple(f"{v}-{h}" for v in ("top", "middle", "bottom") for h in ("left", "center", "right"))
+
+
+def fig_align(v) -> str:
+    v = str(v or "auto")
+    if v in ("left", "center", "right"):          # older settings: horizontal only
+        v = "middle-" + v
+    return v if v in FIG_ALIGNS else "auto"
 
 DEFAULTS = {
     # format
@@ -175,6 +184,7 @@ def normalize_sections(raw) -> list[dict]:
         out.append({"id": str(item.get("id") or "")[:40], "title": title[:200],
                     "figure": fig if fig in FIGURE_MODES else "auto",
                     "body": str(item.get("body") or "")[:20000],
+                    "fig_align": fig_align(item.get("fig_align")),
                     "figs": {str(k): {"img": image_id(v.get("img")), "caption": str(v.get("caption") or "")[:600]}
                              for k, v in figs.items() if str(k) in ("0", "1") and isinstance(v, dict)}})
     return out[:40]

@@ -1,10 +1,12 @@
-"""Font discovery: finds a curated set of font families installed on this computer.
+"""Font discovery: a curated set of font families - copied into the app's fonts/ folder or installed on this computer.
 
-The same family must work in three places, which is why we only offer installed fonts:
+The same family must work in three places, which is why we only offer fonts whose files we can find:
   * the browser preview (SVG text, uses the installed font by name)
   * the PDF/PNG export (the font file is embedded by PyMuPDF)
   * the PowerPoint export (font referenced by name)
-If a family is missing, Helvetica / Times (built into PyMuPDF) are used as fallback.
+If a family is missing, Helvetica / Times / Courier (built into PyMuPDF) are used as fallback.
+Fonts copied into the app's fonts/ folder (not distributed, see fonts/README.md) need no installation;
+the preview loads them with @font-face.
 """
 import os
 import sys
@@ -12,6 +14,8 @@ from functools import lru_cache
 from pathlib import Path
 
 import pymupdf
+
+BUNDLED_DIR = Path(__file__).resolve().parent.parent / "fonts"
 
 # family, generic, regular files, bold files, italic files (first existing file wins)
 FAMILIES = [
@@ -52,12 +56,23 @@ FAMILIES = [
     ("Source Serif 4", "serif", ["SourceSerif4-Regular.ttf"], ["SourceSerif4-Bold.ttf"], ["SourceSerif4-It.ttf"]),
     ("DejaVu Serif", "serif", ["DejaVuSerif.ttf"], ["DejaVuSerif-Bold.ttf"], ["DejaVuSerif-Italic.ttf"]),
     ("Liberation Serif", "serif", ["LiberationSerif-Regular.ttf"], ["LiberationSerif-Bold.ttf"], ["LiberationSerif-Italic.ttf"]),
+    # --- monospace
+    ("JetBrains Mono", "monospace", ["JetBrainsMono-Regular.ttf"], ["JetBrainsMono-Bold.ttf"], ["JetBrainsMono-Italic.ttf"]),
+    ("Source Code Pro", "monospace", ["SourceCodePro-Regular.ttf", "SourceCodePro-Regular.otf"], ["SourceCodePro-Bold.ttf"], ["SourceCodePro-It.ttf"]),
+    ("Fira Code", "monospace", ["FiraCode-Regular.ttf"], ["FiraCode-Bold.ttf"], []),
+    ("IBM Plex Mono", "monospace", ["IBMPlexMono-Regular.ttf"], ["IBMPlexMono-Bold.ttf"], ["IBMPlexMono-Italic.ttf"]),
+    ("Consolas", "monospace", ["consola.ttf"], ["consolab.ttf"], ["consolai.ttf"]),
+    ("Menlo", "monospace", ["Menlo.ttc"], [], []),
+    ("Courier New", "monospace", ["cour.ttf", "Courier New.ttf"], ["courbd.ttf", "Courier New Bold.ttf"], ["couri.ttf", "Courier New Italic.ttf"]),
+    ("DejaVu Sans Mono", "monospace", ["DejaVuSansMono.ttf"], ["DejaVuSansMono-Bold.ttf"], ["DejaVuSansMono-Oblique.ttf"]),
+    ("Liberation Mono", "monospace", ["LiberationMono-Regular.ttf"], ["LiberationMono-Bold.ttf"], ["LiberationMono-Italic.ttf"]),
 ]
 
 DEFAULT_FAMILY = "Arial"
 _BUILTIN = {  # PyMuPDF base-14 fallbacks: (regular, bold, italic)
     "sans-serif": ("helv", "hebo", "heit"),
     "serif": ("tiro", "tibo", "tiit"),
+    "monospace": ("cour", "cobo", "coit"),
 }
 
 
@@ -71,7 +86,7 @@ def _font_dirs() -> list[Path]:
                 home / "Library/Fonts"]
     else:
         dirs = [Path("/usr/share/fonts"), Path("/usr/local/share/fonts"), home / ".local/share/fonts", home / ".fonts"]
-    return [d for d in dirs if d.is_dir()]
+    return [d for d in [BUNDLED_DIR] + dirs if d.is_dir()]     # bundled fonts win
 
 
 @lru_cache(maxsize=1)
@@ -107,9 +122,24 @@ def available() -> dict[str, dict]:
     return out
 
 
+def _bundled(path) -> bool:
+    try:
+        return Path(path).resolve().parent == BUNDLED_DIR
+    except OSError:
+        return False
+
+
 def family_list() -> list[dict]:
-    av = available()
-    return [{"name": n, "generic": v["generic"], "bold": bool(v["bold"])} for n, v in av.items()]
+    """For the font menus. Bundled families carry their files so the browser can load them (@font-face)."""
+    out = []
+    for n, v in available().items():
+        item = {"name": n, "generic": v["generic"], "bold": bool(v["bold"])}
+        if _bundled(v["regular"]):
+            item["faces"] = [{"url": "/fonts/" + Path(p).name, "weight": w, "style": s}
+                             for p, w, s in ((v["regular"], 400, "normal"), (v["bold"], 700, "normal"), (v["italic"], 400, "italic"))
+                             if p and _bundled(p)]
+        out.append(item)
+    return out
 
 
 def resolve(family: str) -> str:
@@ -124,12 +154,16 @@ def generic(family: str) -> str:
     info = available().get(family)
     if info:
         return info["generic"]
-    return "serif" if "serif" in family.lower() and "sans" not in family.lower() else "sans-serif"
+    low = family.lower()
+    if "mono" in low or "courier" in low or "code" in low:
+        return "monospace"
+    return "serif" if "serif" in low and "sans" not in low else "sans-serif"
 
 
 def css_family(family: str) -> str:
     g = generic(family)
-    fallback = "Arial, Helvetica, sans-serif" if g == "sans-serif" else "'Times New Roman', Times, serif"
+    fallback = {"sans-serif": "Arial, Helvetica, sans-serif", "serif": "'Times New Roman', Times, serif",
+                "monospace": "'Courier New', Courier, monospace"}[g]
     return f"'{family}', {fallback}"
 
 

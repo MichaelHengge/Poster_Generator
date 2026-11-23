@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Build output (e.g. PyInstaller)
+build/
+dist/
+*.spec
+
+# Pictures added to posters in Edit mode (saved projects carry their own copies)
+user_data/images/
+
+# Exported posters lying around in the project folder
+*.pdf
+*.pptx
+poster_*.png
+poster_*.svg
+
+# OS / editors
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/
+*.swp
+.claude
+
+# Font files are not distributed - users download them into fonts/ (see fonts/README.md)
+fonts/*
+!fonts/README.md
